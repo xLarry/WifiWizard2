@@ -46,6 +46,48 @@
                                 callbackId:command.callbackId];
 }
 
+- (void)getWifiIPInfo:(CDVInvokedUrlCommand*)command {
+    CDVPluginResult *pluginResult = nil;
+	
+    NSString *address = @"error";
+    NSString *subnet = @"error";
+    struct ifaddrs *interfaces = NULL;
+    struct ifaddrs *temp_addr = NULL;
+    int success = 0;
+    // retrieve the current interfaces - returns 0 on success
+    success = getifaddrs(&interfaces);
+    if (success == 0) {
+        // Loop through linked list of interfaces
+        temp_addr = interfaces;
+        while(temp_addr != NULL) {
+            sa_family_t sa_type = temp_addr->ifa_addr->sa_family;
+            
+            if(sa_type == AF_INET || sa_type == AF_INET6) {
+                // Check if interface is en0 which is the wifi connection on the iPhone
+                if([[NSString stringWithUTF8String:temp_addr->ifa_name] isEqualToString:@"en0"]) {
+                    // Get NSString from C String
+                    address = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr)];
+                    subnet = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_netmask)->sin_addr)];
+                }
+
+            }
+
+            temp_addr = temp_addr->ifa_next;
+        }
+    }
+    // Free memory
+    freeifaddrs(interfaces);
+    if (address && subnet) {
+        NSDictionary* result = @{ @"ip": address, @"subnet": subnet};
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result];
+    } else {
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Not available"];
+    }
+
+    [self.commandDelegate sendPluginResult:pluginResult
+                                callbackId:command.callbackId];
+}
+
 - (id)fetchSSIDInfo {
     // see http://stackoverflow.com/a/5198968/907720
     NSArray *ifs = (__bridge_transfer NSArray *)CNCopySupportedInterfaces();
